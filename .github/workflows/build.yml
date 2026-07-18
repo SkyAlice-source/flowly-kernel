@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        channel: [ stable, latest, alpha ]
+        channel: [ stable ]
     steps:
       - name: Checkout Flowly source
         uses: actions/checkout@v4
