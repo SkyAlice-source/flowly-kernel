@@ -1,0 +1,116 @@
+name: Build Kernel (libbridge.so)
+
+on:
+  workflow_dispatch:
+    inputs:
+      stable_ref:
+        description: "mihomo ref for 'stable' channel (tag/branch/sha)"
+        required: false
+        default: ""
+      latest_ref:
+        description: "mihomo ref for 'latest' channel (tag/branch/sha)"
+        required: false
+        default: ""
+      alpha_ref:
+        description: "mihomo ref for 'alpha' channel (tag/branch/sha)"
+        required: false
+        default: "master"
+  push:
+    branches: [ kernel-build ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        channel: [ stable, latest, alpha ]
+    steps:
+      - name: Checkout Flowly source
+        uses: actions/checkout@v4
+        with:
+          repository: SkyAlice-source/flowly-android
+          fetch-depth: 1
+
+      - name: Resolve mihomo ref for ${{ matrix.channel }}
+        id: ref
+        run: |
+          CH="${{ matrix.channel }}"
+          if [ "$CH" = "alpha" ]; then
+            REF="${{ github.event.inputs.alpha_ref }}"
+            [ -z "$REF" ] && REF="master"
+          else
+            REF="${{ github.event.inputs.stable_ref }}"
+            [ "$CH" = "latest" ] && REF="${{ github.event.inputs.latest_ref }}"
+            if [ -z "$REF" ]; then
+              REF=$(curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
+                | grep -oP '"tag_name"\s*:\s*"\K[^"]+')
+            fi
+          fi
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo "Channel $CH -> mihomo $REF"
+
+      - name: Swap vendored mihomo to ${{ steps.ref.outputs.ref }}
+        run: |
+          rm -rf core/src/foss/golang/clash
+          git clone --depth 1 --branch "${{ steps.ref.outputs.ref }}" \
+            https://github.com/MetaCubeX/mihomo core/src/foss/golang/clash
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Set up Android SDK, NDK, CMake
+        uses: android-actions/setup-android@v3
+      - name: Install NDK / platform / build-tools / cmake
+        run: |
+          yes | sdkmanager \
+            "ndk;28.2.13676358" \
+            "platforms;android-35" \
+            "build-tools;35.0.0" \
+            "cmake;3.22.1"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Build libbridge.so (metaDebug)
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
+        run: ./gradlew :app:assembleMetaDebug --no-daemon
+
+      - name: Extract libbridge.so
+        run: |
+          mkdir -p out
+          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+            cp "core/build/intermediates/library_jni/metaDebug/copyMetaDebugJniLibsProjectOnly/jni/$abi/libbridge.so" \
+               "out/libbridge-$abi.so"
+          done
+
+      - name: Generate checksums
+        run: |
+          cd out
+          sha256sum libbridge-*.so > sha256.txt
+          cat sha256.txt
+
+      - name: Publish release (${{ matrix.channel }})
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ matrix.channel }}
+          name: "Kernel ${{ matrix.channel }} · mihomo ${{ steps.ref.outputs.ref }}"
+          files: |
+            out/libbridge-*.so
+            out/sha256.txt
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
