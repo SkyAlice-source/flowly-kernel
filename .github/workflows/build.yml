@@ -14,7 +14,7 @@ on:
       alpha_ref:
         description: "mihomo ref for 'alpha' channel (tag/branch/sha)"
         required: false
-        default: "master"
+        default: "main"
   push:
     branches: [ kernel-build ]
 
@@ -80,7 +80,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.24'
 
       - name: Tidy Go modules (mihomo swap changed dependency tree)
         run: |
