@@ -75,6 +75,13 @@ jobs:
         with:
           go-version: '1.22'
 
+      - name: Tidy Go modules (mihomo swap changed dependency tree)
+        run: |
+          cd core/src/main/golang
+          go mod tidy
+          cd ../../foss/golang/clash
+          go mod tidy || true
+
       - name: Set up Android SDK, NDK, CMake
         uses: android-actions/setup-android@v3
       - name: Install NDK / platform / build-tools / cmake
