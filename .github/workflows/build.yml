@@ -77,7 +77,9 @@ jobs:
 
       - name: Tidy Go modules (mihomo swap changed dependency tree)
         run: |
-          cd core/src/main/golang
+          cd core/src/foss/golang
+          go mod tidy
+          cd ../../main/golang
           go mod tidy
           cd ../../foss/golang/clash
           go mod tidy || true
@@ -100,6 +102,7 @@ jobs:
       - name: Build libbridge.so (metaDebug)
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
+          GOFLAGS: "-mod=mod"
         run: ./gradlew :app:assembleMetaDebug --no-daemon
 
       - name: Extract libbridge.so
