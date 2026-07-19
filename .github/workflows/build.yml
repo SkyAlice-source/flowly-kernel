@@ -34,6 +34,12 @@ jobs:
           repository: SkyAlice-source/flowly-android
           fetch-depth: 1
 
+      - name: Patch repositories (drop aliyun mirror — 502 on US runners)
+        run: |
+          sed -i '/maven.aliyun.com/d' settings.gradle.kts
+          echo "--- repositories after patch ---"
+          cat settings.gradle.kts
+
       - name: Resolve mihomo ref for ${{ matrix.channel }}
         id: ref
         run: |
