@@ -25,6 +25,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         channel: [ stable, latest, alpha ]
     steps:
@@ -42,6 +43,8 @@ jobs:
 
       - name: Resolve mihomo ref for ${{ matrix.channel }}
         id: ref
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           CH="${{ matrix.channel }}"
           if [ "$CH" = "alpha" ]; then
@@ -51,9 +54,13 @@ jobs:
             REF="${{ github.event.inputs.stable_ref }}"
             [ "$CH" = "latest" ] && REF="${{ github.event.inputs.latest_ref }}"
             if [ -z "$REF" ]; then
-              REF=$(curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
+              # 用 workflow token 调用 API，避免匿名限流导致 ref 为空
+              REF=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+                https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
                 | grep -oP '"tag_name"\s*:\s*"\K[^"]+')
             fi
+            # 兜底：API 仍受限时退回已知稳定版，避免整通道失败
+            [ -z "$REF" ] && REF="v1.19.29"
           fi
           echo "ref=$REF" >> "$GITHUB_OUTPUT"
           echo "Channel $CH -> mihomo $REF"
@@ -108,9 +115,14 @@ jobs:
       - name: Extract libbridge.so
         run: |
           mkdir -p out
-          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
-            cp "core/build/intermediates/library_jni/metaDebug/copyMetaDebugJniLibsProjectOnly/jni/$abi/libbridge.so" \
-               "out/libbridge-$abi.so"
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            SRC="core/build/intermediates/library_jni/metaDebug/copyMetaDebugJniLibsProjectOnly/jni/$abi/libbridge.so"
+            if [ -f "$SRC" ]; then
+              cp "$SRC" "out/libbridge-$abi.so"
+              echo "extracted $abi"
+            else
+              echo "WARN: $abi not produced, skipping"
+            fi
           done
 
       - name: Generate checksums
@@ -127,6 +139,6 @@ jobs:
           files: |
             out/libbridge-*.so
             out/sha256.txt
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -44,7 +44,6 @@ For each channel we simply swap the **vendored mihomo source**
 7. Publish a GitHub Release tagged `stable` / `latest` / `alpha` containing:
    - `libbridge-arm64-v8a.so`
    - `libbridge-armeabi-v7a.so`
-   - `libbridge-x86.so`
    - `libbridge-x86_64.so`
    - `sha256.txt`
 
