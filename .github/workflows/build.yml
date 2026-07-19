@@ -14,7 +14,7 @@ on:
       alpha_ref:
         description: "mihomo ref for 'alpha' channel (tag/branch/sha)"
         required: false
-        default: "main"
+        default: "v1.19.29"
   push:
     branches: [ kernel-build ]
 
